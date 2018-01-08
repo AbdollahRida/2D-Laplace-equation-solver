@@ -1,0 +1,157 @@
+# Written by Franco Rabec and Abdollah Rida
+# Question 9 du projet MAP 411
+
+import numpy as np
+import matplotlib.pyplot as plt
+import pylab
+from mpl_toolkits.mplot3d import Axes3D
+import scipy as sp
+from scipy import sparse
+from scipy.sparse import linalg
+
+I = 1000  # nombre d'intervalles du maillage
+P = 1
+nx = []
+nx = np.linspace(0, 1, I + 2)
+M = sp.sparse.diags([1 / (6), 2 / (3), 1 / (6)], [-1, 0, 1], shape=(I + 1, I + 1))
+M = sp.sparse.csr_matrix(M)
+M[0, 0] = 1 / (3)
+M[I, I] = 1 / 3
+M = (1/I) * M
+D = sp.sparse.diags([-1, 2, -1], [-1, 0, 1], shape=(I + 1, I + 1))
+D = sp.sparse.csr_matrix(D)
+D[0, 0] = 1
+D[I, I] = 1
+D=(I)*D
+
+
+def f11(x):
+    return x
+
+
+def f12(x):
+    return x
+
+
+def f21(x):
+    return np.exp(x)
+
+
+def f22(x):
+    return x
+
+
+if P == 1:
+    F1 = np.zeros(shape=(I + 1))
+    F2 = np.zeros(shape=(I + 1))
+    for i in range(1, I + 2):
+        F1[i - 1] = (f11(nx[i]))  # Formule des trapezes
+        F2[i - 1] = (f12(nx[i]))
+
+else:  # P=2
+    F1 = np.zeros(shape=(2, I + 1))
+    F2 = np.zeros(shape=(2, I + 1))
+    for i in range(1, I + 1):
+        F1[0][i - 1] = f11(nx[i])/I
+        F1[1][i-1]=f12(nx[i])/I# Formule des trapèzes
+        F2[0][i - 1]= f21(nx[i])/I
+        F2[1][i-1]=f22(nx[i])/I
+
+
+def matrice(v):
+    a=((np.transpose(v).dot(D).dot(v)))
+    b=(np.transpose(v).dot(M).dot(v))
+    return (a*M+b*D+a*M)
+
+
+def f(v, sn, rn, n):
+    if P == 1:
+        a = (np.transpose(v).dot(F2))*(F1)
+        for k in range(1, n):
+            x=(np.transpose(v).dot(D).dot(sn[k]))
+            y=(np.transpose(v).dot(M).dot(sn[k]))
+            a -= x*M.dot(rn[k])
+            a -= y*D.dot(rn[k])
+            a -= y*M.dot(rn[k])
+        return a
+    else:  # P=2
+        a = (np.transpose(v).dot(F2[0]))*(F1[0]) + (np.transpose(v).dot(F2[1]))*(F1[1])
+        for k in range(1, n):
+            x =(np.transpose(v).dot(D).dot(sn[k]))
+            y = (np.transpose(v).dot(M).dot(sn[k]))
+            a -= x * M.dot(rn[k])
+            a -= y * D.dot(rn[k])
+            a -= y * M.dot(rn[k])
+        return a
+
+
+def g(v, sn, rn, n):
+    if P == 1:
+        a = (np.transpose(v).dot(F1)) * (F2)
+        for k in range(1, n):
+            x = (np.transpose(v).dot(D).dot(rn[k]))
+            y = (np.transpose(v).dot(M).dot(rn[k]))
+            a -= x * M.dot(sn[k])
+            a -= y * D.dot(sn[k])
+            a -= y * M.dot(sn[k])
+        return a
+    else:  # P=2
+
+        a = (np.transpose(v).dot(F1[0]))*F2[0] + (np.transpose(v).dot(F1[1]))*F2[1]
+        for k in range(1, n):
+            x = (np.transpose(v).dot(D).dot(rn[k]))
+            y = (np.transpose(v).dot(M).dot(rn[k]))
+            a -= x * M.dot(sn[k])
+            a -= y * D.dot(sn[k])
+            a -= y * M.dot(sn[k])
+        return a
+
+
+# Calcule Sn,m par une méthode du point fixe
+def pf(n, m):
+    sn = np.zeros(shape=(n,I+1))
+    rn = np.zeros(shape=(n,I+1))
+    rm=0
+    sm=0
+    rm1=0
+    sm1=0
+    for i in range(n):  # On calcule les sn
+        sm = np.ones(shape=(I + 1))  # On part d'un état arbitraire
+        for j in range(m):  # On calcule les snm
+            rm1 = sp.sparse.linalg.spsolve(matrice(sm), f(sm, sn, rn, i))
+            sm1 = sp.sparse.linalg.spsolve(matrice(rm1), g(rm1, sn, rn, i))
+            sm=sm1
+            rm=rm1
+        rn[i]=rm
+        sn[i]=sm
+    return [sn,rn]
+
+
+
+def valeurFonction (n,m):
+    U=np.zeros(shape=(I+1,I+1))
+    pointFixe=pf(n,m)
+    S=pointFixe[0]
+    R=pointFixe[1]
+    for i in range (I+1):
+        for j in range (I+1):
+            s=0
+            for k in range (n):
+                s+=R[k][i]*S[k][j]
+            U[i][j]=s
+    return U
+
+def afficheFonction(n,m):
+    fig=plt.figure()
+    x=np.linspace(0,1,1001)
+    y=np.linspace(0,1,1001)
+    x, y=np.meshgrid(x,y)
+    ax = fig.gca(projection='3d')
+    surf=ax.plot_surface(x,y,valeurFonction(n,m))
+    plt.show()
+
+
+
+afficheFonction(3,5)
+
+
